@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { WebView, View, Text, FlatList, ActivityIndicator, StyleSheet, Platform, Linking } from 'react-native';
+import { WebView, View, Text, FlatList, ActivityIndicator, StyleSheet, Platform, Linking , TouchableOpacity} from 'react-native';
 import { List, ListItem, SearchBar } from 'react-native-elements';
 const isAndroid = Platform.OS === 'android';
 const WEBVIEW_REF = "WEBVIEW_REF";
@@ -17,6 +17,9 @@ class FlatListDemo extends Component {
       refreshing: false,
       ad: false,
       adSense: false,
+      canGoBack: false,
+      adClick: false,
+      adSenseClick: false,
     };
   }
 
@@ -35,18 +38,9 @@ class FlatListDemo extends Component {
     return target;
   };
 
-  addAdSense = () => {
+  addAdSense = (indice) => {
     const jsCode = ` 
-        
-    (function () {
-        window.onclick = function(e) {
-          e.preventDefault();
-          window.postMessage(e.target.href);
-          e.stopPropagation()
-        }
-      }());
-    
-    
+          
     var pageOptions = {
         "pubId":"pub-3902876258354218",
         "channel":"1232899320+6926179322+6377288520",
@@ -89,13 +83,14 @@ class FlatListDemo extends Component {
     window._googCsa('ads', pageOptions, adblock1);
 
     `;
+  
 
     return(
       <View style={styles.container}>
         <Text>Publicité</Text>
         <WebView
-              onPress={false}
-              ref={WEBVIEW_REF}
+              key={'AdSense' + indice}
+              ref={(ref) => { this.webview = ref; }}
               style={styles.webView2}
               source={{uri:isAndroid?'file:///android_asset/adSense.html':'./widget/index.html', }}
               javaScriptEnabled={true}
@@ -107,31 +102,27 @@ class FlatListDemo extends Component {
               startInLoadingState={true}
               automaticallyAdjustContentInsets={false}
               onNavigationStateChange={(event) => {
-                if (event.url.startsWith("http://") || event.url.startsWith("https://")) {
-                    Linking.openURL(event.url);
+                if (!this.state.adSenseClick  && (event.url.startsWith("http://") || event.url.startsWith("https://"))) {
+              //    this.webview.stopLoading();
+                  Linking.openURL(event.url);
+                  this.webview.canGoBack=true;
+                  this.webview.goBack();
+                  this.setState({adSenseClick: true})
                 }
-            }} 
+            }}
           />
       
      </View>
     )
   }
 
-  addAd = () => {
+  addAd = (indice) => {
     const jsCode = `
     function ready() {
       var iframe= window.frames["google_ads_iframe_7190/Cdiscount_App_Android/auto-moto-gps/recherche/native-line_0"];
       iframe.height="200px";
       iframe.width="100%";
     };
-
-    (function () {
-      window.onclick = function(e) {
-        e.preventDefault();
-        window.postMessage(e.target.href);
-        e.stopPropagation()
-      }
-    }());
 
     googletag.cmd.push(function() {
       var adSlot1 = googletag.defineSlot('7190/Cdiscount_App_Android/auto-moto-gps/recherche/native-line', 'fluid' , "banner1");
@@ -149,12 +140,29 @@ class FlatListDemo extends Component {
     return (
       <View style={styles.webView3}>
         <WebView
+        ref={(ref) => { this.webviewAd = ref; }}
+        key={'pub' + indice}
         style={styles.webView3}
         source={{uri:isAndroid?'file:///android_asset/ad.html':'./widget/index.html', }}
         javaScriptEnabled={true}
-        mixedContentMode="always"
+        mixedContentMode="compatibility"
         injectedJavaScript={jsCode}
         scrollEnabled={false}
+        domStorageEnabled={true}
+        scalesPageToFit
+        startInLoadingState={true}
+        automaticallyAdjustContentInsets={false}
+        onNavigationStateChange={(event) => {
+          if (!this.state.adClick && (event.url.startsWith("http://") || event.url.startsWith("https://"))) {
+                 // this.webviewAd.stopLoading();
+                  Linking.openURL(event.url);
+                  this.webviewAd.canGoBack=true;
+                  this.webviewAd.goBack();
+                  this.setState({adClick: true})
+          }
+      }}
+
+      
       />
       </View>
  
@@ -168,8 +176,10 @@ class FlatListDemo extends Component {
     fetch(url)
       .then(res => res.json())
       .then(res => {
-        res.results.push({ name: 'pub', picture: null, email: 'pub@pub.pub' + page });
-        res.results.push({ name: 'adSense', picture: null, email: 'pubAdSense@pub.pub' + page });
+        if(page===1) {
+          res.results.push({ name: 'pub', picture: null, email: 'pub@pub.pub' + page , page: page});
+          res.results.push({ name: 'adSense', picture: null, email: 'pubAdSense@pub.pub' + page, page: page });
+        }
         this.setState({
           data: page === 1 ? res.results : [...this.state.data, ...res.results],
           error: res.error || null,
@@ -250,10 +260,10 @@ class FlatListDemo extends Component {
           data={this.state.data}
           renderItem={({ item }) =>
             item.name === 'adSense' ? (
-              this.addAdSense()
+              this.addAdSense(item.page)
             ) :
             item.name === 'pub' ? (
-              this.addAd()
+              this.addAd(item.page)
             ) : (
               <ListItem
                 roundAvatar
